@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <netdb.h>
 #include <time.h>
+#include <unistd.h>
 #include <arpa/inet.h>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
@@ -75,6 +76,45 @@ SSL_CTX *createContext()
 	// Give the identity and PSK
 	SSL_CTX_set_psk_client_callback(ctx, pskCallback);
 	return ctx;
+}
+
+int connectUDP(char *host)
+{
+	// Modified from the getaddrinfo man page
+	struct addrinfo hints, *results, *result;
+	int err, sock;
+	bzero(&hints, sizeof(hints));
+	hints.ai_family = PF_UNSPEC;
+	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_protocol = IPPROTO_UDP;
+	hints.ai_flags = AI_DEFAULT;
+
+	err = getaddrinfo(host, HUE_ENTERTAINMENT_PORT, &hints, &results);
+	if (err) {
+		ERROR(gai_strerror(err));
+		exit(EXIT_FAILURE);
+	}
+	sock = -1;
+	for (result = results; result; result = result->ai_next) {
+		sock = socket(result->ai_family, result->ai_socktype,
+				      result->ai_protocol);
+		if (sock < 0) {
+			WARN(strerror(errno));
+			continue;
+		}
+		if (connect(sock, result->ai_addr, result->ai_addrlen) < 0) {
+			WARN(strerror(errno));
+			close(sock);
+			sock = -1;
+			continue;
+		}
+		break;
+	}
+	if (sock < 0) {
+		ERROR("Unable to connect to host.");
+		exit(EXIT_FAILURE);
+	}
+	return sock;
 }
 
 BIO *connectDTLS(SSL_CTX *ctx, char *host)
