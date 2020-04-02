@@ -275,7 +275,7 @@ void loopColors(SSL *ssl, int duration)
 		} else {
 			colorIndex += 1;
 		}
-		printf("Set color index %d\n", colorIndex);
+		//printf("Set color index %d\n", colorIndex);
 	}
 }
 
@@ -320,7 +320,8 @@ int main(int argc, char **argv)
 		goto cleanup_bio;
 	}
 
-	loopColors(ssl);
+	printf("Delay is %d us (%f s)\n", BPM_DELAY_US, (BPM_DELAY_US / 1000000.0));
+	loopColors(ssl, duration);
 
 cleanup_bio:
 	BIO_free(bio);
