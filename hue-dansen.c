@@ -74,6 +74,7 @@ SSL_CTX *createContext()
 	SSL_CTX_set_cipher_list(ctx, "PSK-AES128-GCM-SHA256");
 	// Give the identity and PSK
 	SSL_CTX_set_psk_client_callback(ctx, pskCallback);
+	INFO("Created DTLSv1.2 context.")
 	return ctx;
 }
 
@@ -101,12 +102,14 @@ int connectUDP(char *host)
 			WARN(strerror(errno));
 			continue;
 		}
+		INFO("UDP socket created.");
 		if (connect(sock, result->ai_addr, result->ai_addrlen) < 0) {
 			WARN(strerror(errno));
 			close(sock);
 			sock = -1;
 			continue;
 		}
+		INFO("UDP socket connected.");
 		break;
 	}
 	if (sock < 0) {
@@ -125,6 +128,7 @@ BIO *connectDTLS(SSL_CTX *ctx, char *host)
 		OPENSSL_ERROR("Unable to create BIO.");
 		exit(EXIT_FAILURE);
 	}
+	INFO("BIO created.");
 	// Keeping the UDP connection in a separate function, so we have to re-look
 	// up the address the socket is connected to.
 	// Just assuming IPv6 address structs are large enough for both IPv4 and v6
@@ -147,24 +151,29 @@ BIO *connectDTLS(SSL_CTX *ctx, char *host)
 	}
 	// TODO: Confirm that I don't have a use-after-free here
 	free(addr);
+	INFO("BIO attached to existing UDP socket.");
 	// Create an SSL object and hook it up to the BIO
 	SSL *ssl = SSL_new(ctx);
 	if (ssl == NULL) {
 		OPENSSL_ERROR("Unable to create SSL object.");
 		exit(EXIT_FAILURE);
 	}
+	INFO("SSL object created.");
 	SSL_set_bio(ssl, bio, bio);
+	INFO("SSL objected attached to BIO.");
 	// Set timeout
 	struct timeval timeout;
 	bzero(&timeout, sizeof(timeout));
 	timeout.tv_sec = 2;
 	BIO_ctrl(bio, BIO_CTRL_DGRAM_SET_RECV_TIMEOUT, 0, &timeout);
+	INFO("SSL timeout set.");
 	// Connect
 	err = SSL_connect(ssl);
 	if (err < 1) {
 		OPENSSL_ERROR("Unable to open DTLS channel.");
 		exit(EXIT_FAILURE);
 	}
+	INFO("DTLS connected.");
 	return bio;
 }
 
