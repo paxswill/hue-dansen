@@ -145,10 +145,12 @@ BIO *connectDTLS(SSL_CTX *ctx, int sock)
 	}
 	// Hook the BIO up to the socket
 	err = BIO_ctrl(bio, BIO_CTRL_DGRAM_SET_CONNECTED, 0, addr);
-	if (0) {
+	/* Commenting this out as the return value fo BIO_ctrl isn't great.
+	if (err) {
 		OPENSSL_ERROR("Unable to set BIO connected status.");
 		goto cleanup_bio;
 	}
+	*/
 	// TODO: Confirm that I don't have a use-after-free here
 	free(addr);
 	INFO("BIO attached to existing UDP socket.");
