@@ -242,13 +242,9 @@ void setCIE(SSL *ssl,
 		lightBegin += 9;
 	}
 	// Now send the entire message off to DTLS land
+	// Don't care, just keep spamming packets
 	int ret = SSL_write(ssl, buf, bufLen);
 	free(buf);
-	printf("\tWrote %d bytes to DTLS\n", ret);
-	if (ret < 0) {
-		OPENSSL_ERROR("Unable to send data.");
-		exit(EXIT_FAILURE);
-	}
 }
 
 void loopColors(SSL *ssl)
