@@ -58,8 +58,7 @@ unsigned int pskCallback(SSL *ssl,
 		sscanf(psk + i, "%2hhX", pskBytes + i / 2);
 	}
 	memcpy(psk_buf, &pskBytes, 16);
-	psk_buf[16] = 0;
-	return 1;
+	return 16;
 }
 
 SSL_CTX *createContext()
