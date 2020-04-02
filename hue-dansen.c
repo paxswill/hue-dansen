@@ -11,6 +11,18 @@
 
 #define HUE_ENTERTAINMENT_PORT "2100"
 
+#define LOG(lvl, msg) do { \
+	fprintf(stderr, "(%-6s) %4d: %s\n", lvl, __LINE__, msg); \
+} while(0);
+
+#define INFO(msg) LOG("INFO", msg);
+#define WARN(msg) LOG("WARN", msg);
+#define ERROR(msg) LOG("ERROR", msg);
+#define OPENSSL_ERROR(msg) do { \
+	ERROR(msg); \
+	ERR_print_errors_fp(stderr); \
+} while(0);
+
 
 static char *identity;
 static char *psk;
@@ -53,8 +65,7 @@ SSL_CTX *createContext()
 {
 	SSL_CTX *ctx = SSL_CTX_new(DTLS_client_method());
 	if (ctx == NULL) {
-		fprintf(stderr, "Error allocating SSL context.\n");
-		ERR_print_errors_fp(stderr);
+		OPENSSL_ERROR("Unable to allocate SSL context.");
 		exit(EXIT_FAILURE);
 	}
 	// Force it to just DTLSv1.2
@@ -70,8 +81,7 @@ BIO *connectDTLS(SSL_CTX *ctx, char *host)
 {
 	BIO *bio = BIO_new_ssl_connect(ctx);
 	if (bio == NULL) {
-		fprintf(stderr, "Error connection BIO.\n");
-		ERR_print_errors_fp(stderr);
+		OPENSSL_ERROR("Unable to create BIO.");
 		exit(EXIT_FAILURE);
 	}
 	BIO_set_conn_hostname(bio, host);
@@ -133,8 +143,7 @@ void setCIE(SSL *ssl,
 	free(buf);
 	printf("\tWrote %d bytes to DTLS\n", ret);
 	if (ret < 0) {
-		fprintf(stderr, "Error sending datagrams.\n");
-		ERR_print_errors_fp(stderr);
+		OPENSSL_ERROR("Unable to send data.");
 		exit(EXIT_FAILURE);
 	}
 }
@@ -149,7 +158,7 @@ int main(int argc, char **argv)
 	identity = argv[2];
 	psk = argv[3];
 	if (strlen(psk) != 32) {
-		fprintf(stderr, "PSK needs to be exactly 32 hex digits.\n");
+		ERROR("PSK needs to be exactly 32 hex digits.");
 		exit(EXIT_FAILURE);
 	}
 	SSL_CTX *ctx = createContext();
