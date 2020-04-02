@@ -247,8 +247,10 @@ void setCIE(SSL *ssl,
 	free(buf);
 }
 
-void loopColors(SSL *ssl)
+void loopColors(SSL *ssl, int duration)
 {
+	time_t startTime = time(NULL);
+	time_t currentTime = startTime;
 	int colorIndex = 0;
 	struct timespec delay;
 	delay.tv_sec = 0;
@@ -256,6 +258,12 @@ void loopColors(SSL *ssl)
 	// TODO: hardcoding the lights for now
 	uint16_t lightIDs[] = {0, 1};
 	while(1) {
+		if (duration != 0) {
+			currentTime = time(NULL);
+			if (currentTime - startTime > duration) {
+				break;
+			}
+		}
 		struct color color = colors[colorIndex];
 		setCIE(ssl, color.x, color.y, 0xffff, 2, lightIDs);
 		if (colorIndex >= 4) {
@@ -270,10 +278,16 @@ void loopColors(SSL *ssl)
 
 int main(int argc, char **argv)
 {
-	if (argc != 4) {
-		fprintf(stderr, "Usage:\n%s hue-IP-address identity psk\n", argv[0]);
+	int duration = 0;
+	int exitStatus = EXIT_SUCCESS;
+	if (argc < 4) {
+		fprintf(stderr,
+		        "Usage:\n%s hue-IP-address identity psk [duration]\n", argv[0]);
 		printf("Argc: %d\n", argc);
 		exit(EXIT_FAILURE);
+	}
+	if (argc > 4) {
+		duration = sscanf(argv[4], "%d", &duration);
 	}
 	identity = argv[2];
 	psk = argv[3];
