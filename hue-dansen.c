@@ -303,28 +303,34 @@ int main(int argc, char **argv)
 	}
 	int sock = connectUDP(argv[1]);
 	if (sock < 0) {
+		exitStatus = EXIT_FAILURE;
 		goto cleanup_socket;
 	}
 	BIO *bio = connectDTLS(ctx, sock);
 	if (bio == NULL) {
+		exitStatus = EXIT_FAILURE;
 		goto cleanup_bio;
 	}
 	SSL *ssl = connectSSL(ctx, bio);
+	if (ssl == NULL) {
+		exitStatus = EXIT_FAILURE;
+		goto cleanup_bio;
+	}
 
 	loopColors(ssl);
 
-	SSL_free(ssl);
 cleanup_bio:
-	BIO_flush(bio);
 	BIO_free(bio);
 cleanup_socket:
 	if(!shutdown(sock, SHUT_RDWR)) {
+		exitStatus = EXIT_FAILURE;
 		ERROR(strerror(errno));
 	}
 	if(!close(sock)) {
+		exitStatus = EXIT_FAILURE;
 		ERROR(strerror(errno));
 	}
 cleanup_ctx:
 	SSL_CTX_free(ctx);
-	exit(EXIT_FAILURE);
+	exit(exitStatus);
 }
