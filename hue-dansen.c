@@ -119,17 +119,53 @@ int connectUDP(char *host)
 
 BIO *connectDTLS(SSL_CTX *ctx, char *host)
 {
-	BIO *bio = BIO_new_ssl_connect(ctx);
+	int err;
+	int sock = connectUDP(host);
+	BIO *bio = BIO_new_dgram(sock, BIO_NOCLOSE);
 	if (bio == NULL) {
 		OPENSSL_ERROR("Unable to create BIO.");
 		exit(EXIT_FAILURE);
 	}
-	BIO_set_conn_hostname(bio, host);
-	BIO_set_conn_port(bio, HUE_ENTERTAINMENT_PORT);
-
-	SSL *ssl;
-	BIO_get_ssl(bio, &ssl);
-	SSL_set_connect_state(ssl);
+	// Keeping the UDP connection in a separate function, so we have to re-look
+	// up the address the socket is connected to.
+	// Just assuming IPv6 address structs are large enough for both IPv4 and v6
+	socklen_t addr_len = sizeof(struct sockaddr_in6);
+	struct sockaddr *addr = malloc(addr_len);
+	if (addr == NULL) {
+		ERROR("Unable to allocate memory!");
+		exit(EXIT_FAILURE);
+	}
+	err = getsockname(sock, addr, &addr_len);
+	if (err) {
+		ERROR(strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	// Hook the BIO up to the socket
+	err = BIO_ctrl(bio, BIO_CTRL_DGRAM_SET_CONNECTED, 0, addr);
+	if (0) {
+		OPENSSL_ERROR("Unable to set BIO connected status.");
+		exit(EXIT_FAILURE);
+	}
+	// TODO: Confirm that I don't have a use-after-free here
+	free(addr);
+	// Create an SSL object and hook it up to the BIO
+	SSL *ssl = SSL_new(ctx);
+	if (ssl == NULL) {
+		OPENSSL_ERROR("Unable to create SSL object.");
+		exit(EXIT_FAILURE);
+	}
+	SSL_set_bio(ssl, bio, bio);
+	// Set timeout
+	struct timeval timeout;
+	bzero(&timeout, sizeof(timeout));
+	timeout.tv_sec = 2;
+	BIO_ctrl(bio, BIO_CTRL_DGRAM_SET_RECV_TIMEOUT, 0, &timeout);
+	// Connect
+	err = SSL_connect(ssl);
+	if (err < 1) {
+		OPENSSL_ERROR("Unable to open DTLS channel.");
+		exit(EXIT_FAILURE);
+	}
 	return bio;
 }
 
