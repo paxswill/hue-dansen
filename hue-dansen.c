@@ -112,6 +112,7 @@ int connectUDP(char *host)
 		INFO("UDP socket connected.");
 		break;
 	}
+	freeaddrinfo(results);
 	if (sock < 0) {
 		ERROR("Unable to connect to host.");
 		return -1;
