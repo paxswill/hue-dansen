@@ -10,8 +10,6 @@
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 
-#define HUE_ENTERTAINMENT_PORT "2100"
-
 #define LOG(lvl, msg) do { \
 	fprintf(stderr, "(%-6s) %4d: %s\n", lvl, __LINE__, msg); \
 } while(0);
@@ -23,6 +21,12 @@
 	ERROR(msg); \
 	ERR_print_errors_fp(stderr); \
 } while(0);
+
+
+#define HUE_ENTERTAINMENT_PORT "2100"
+#define BPM 165
+#define BPM_DELAY_US ((int)(60.0 / (float)BPM * 1000000))
+#define SUPERSAMPLE_COUNT 4
 
 
 static char *identity;
@@ -252,9 +256,6 @@ void loopColors(SSL *ssl, int duration)
 	time_t startTime = time(NULL);
 	time_t currentTime = startTime;
 	int colorIndex = 0;
-	struct timespec delay;
-	delay.tv_sec = 0;
-	delay.tv_nsec = 1000000000 * 0.65;
 	// TODO: hardcoding the lights for now
 	uint16_t lightIDs[] = {0, 1};
 	while(1) {
@@ -265,13 +266,15 @@ void loopColors(SSL *ssl, int duration)
 			}
 		}
 		struct color color = colors[colorIndex];
-		setCIE(ssl, color.x, color.y, 0xffff, 2, lightIDs);
+		for (int i = 0; i < SUPERSAMPLE_COUNT; i++) {
+			setCIE(ssl, color.x, color.y, 0xffff, 2, lightIDs);
+			usleep(BPM_DELAY_US / SUPERSAMPLE_COUNT);
+		}
 		if (colorIndex >= 4) {
 			colorIndex = 0;
 		} else {
 			colorIndex += 1;
 		}
-		nanosleep(&delay, NULL);
 		printf("Set color index %d\n", colorIndex);
 	}
 }
