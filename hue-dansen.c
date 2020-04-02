@@ -154,11 +154,24 @@ BIO *connectDTLS(SSL_CTX *ctx, int sock)
 	// TODO: Confirm that I don't have a use-after-free here
 	free(addr);
 	INFO("BIO attached to existing UDP socket.");
+	return bio;
+
+cleanup_dtls_bio:
+	BIO_flush(bio);
+	if(!BIO_free(bio)) {
+		OPENSSL_ERROR("Error cleaning up BIO.");
+	}
+	return NULL;
+}
+
+
+SSL *connectSSL(SSL_CTX *ctx, BIO *bio)
+{
 	// Create an SSL object and hook it up to the BIO
 	SSL *ssl = SSL_new(ctx);
 	if (ssl == NULL) {
 		OPENSSL_ERROR("Unable to create SSL object.");
-		goto cleanup_dtls_bio;
+		return NULL;
 	}
 	INFO("SSL object created.");
 	SSL_set_bio(ssl, bio, bio);
@@ -170,21 +183,16 @@ BIO *connectDTLS(SSL_CTX *ctx, int sock)
 	BIO_ctrl(bio, BIO_CTRL_DGRAM_SET_RECV_TIMEOUT, 0, &timeout);
 	INFO("SSL timeout set.");
 	// Connect
-	err = SSL_connect(ssl);
+	int err = SSL_connect(ssl);
 	if (err < 1) {
 		OPENSSL_ERROR("Unable to open DTLS channel.");
-		goto cleanup_dtls_ssl;
+		goto cleanup_ssl_ssl;
 	}
 	INFO("DTLS connected.");
-	return bio;
+	return ssl;
 
-cleanup_dtls_ssl:
-	//SSL_free(ssl);
-cleanup_dtls_bio:
-	BIO_flush(bio);
-	if(!BIO_free(bio)) {
-		OPENSSL_ERROR("Error cleaning up BIO.");
-	}
+cleanup_ssl_ssl:
+	SSL_free(ssl);
 	return NULL;
 }
 
@@ -291,8 +299,7 @@ int main(int argc, char **argv)
 	if (bio == NULL) {
 		goto cleanup_bio;
 	}
-	SSL *ssl;
-	BIO_get_ssl(bio, &ssl);
+	SSL *ssl = connectSSL(ctx, bio);
 
 	loopColors(ssl);
 
