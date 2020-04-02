@@ -11,7 +11,7 @@
 #include <openssl/ssl.h>
 
 #define LOG(lvl, msg) do { \
-	fprintf(stderr, "(%-6s) %4d: %s\n", lvl, __LINE__, msg); \
+	fprintf(stderr, "(%-6s) %15s:%4d: %s\n", lvl, __FILE__, __LINE__, msg); \
 } while(0);
 
 #define INFO(msg) LOG("INFO", msg);
