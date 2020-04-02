@@ -66,7 +66,7 @@ SSL_CTX *createContext()
 	SSL_CTX *ctx = SSL_CTX_new(DTLS_client_method());
 	if (ctx == NULL) {
 		OPENSSL_ERROR("Unable to allocate SSL context.");
-		exit(EXIT_FAILURE);
+		return NULL;
 	}
 	// Force it to just DTLSv1.2
 	SSL_CTX_set_min_proto_version(ctx, DTLS1_2_VERSION);
@@ -92,7 +92,7 @@ int connectUDP(char *host)
 	err = getaddrinfo(host, HUE_ENTERTAINMENT_PORT, &hints, &results);
 	if (err) {
 		ERROR(gai_strerror(err));
-		exit(EXIT_FAILURE);
+		return -1;
 	}
 	sock = -1;
 	for (result = results; result; result = result->ai_next) {
@@ -114,19 +114,18 @@ int connectUDP(char *host)
 	}
 	if (sock < 0) {
 		ERROR("Unable to connect to host.");
-		exit(EXIT_FAILURE);
+		return -1;
 	}
 	return sock;
 }
 
-BIO *connectDTLS(SSL_CTX *ctx, char *host)
+BIO *connectDTLS(SSL_CTX *ctx, int sock)
 {
 	int err;
-	int sock = connectUDP(host);
 	BIO *bio = BIO_new_dgram(sock, BIO_NOCLOSE);
 	if (bio == NULL) {
 		OPENSSL_ERROR("Unable to create BIO.");
-		exit(EXIT_FAILURE);
+		return NULL;
 	}
 	INFO("BIO created.");
 	// Keeping the UDP connection in a separate function, so we have to re-look
@@ -136,18 +135,18 @@ BIO *connectDTLS(SSL_CTX *ctx, char *host)
 	struct sockaddr *addr = malloc(addr_len);
 	if (addr == NULL) {
 		ERROR("Unable to allocate memory!");
-		exit(EXIT_FAILURE);
+		goto cleanup_dtls_bio;
 	}
 	err = getsockname(sock, addr, &addr_len);
 	if (err) {
 		ERROR(strerror(errno));
-		exit(EXIT_FAILURE);
+		goto cleanup_dtls_bio;
 	}
 	// Hook the BIO up to the socket
 	err = BIO_ctrl(bio, BIO_CTRL_DGRAM_SET_CONNECTED, 0, addr);
 	if (0) {
 		OPENSSL_ERROR("Unable to set BIO connected status.");
-		exit(EXIT_FAILURE);
+		goto cleanup_bio;
 	}
 	// TODO: Confirm that I don't have a use-after-free here
 	free(addr);
@@ -156,7 +155,7 @@ BIO *connectDTLS(SSL_CTX *ctx, char *host)
 	SSL *ssl = SSL_new(ctx);
 	if (ssl == NULL) {
 		OPENSSL_ERROR("Unable to create SSL object.");
-		exit(EXIT_FAILURE);
+		goto cleanup_dtls_bio;
 	}
 	INFO("SSL object created.");
 	SSL_set_bio(ssl, bio, bio);
@@ -171,10 +170,19 @@ BIO *connectDTLS(SSL_CTX *ctx, char *host)
 	err = SSL_connect(ssl);
 	if (err < 1) {
 		OPENSSL_ERROR("Unable to open DTLS channel.");
-		exit(EXIT_FAILURE);
+		goto cleanup_dtls_ssl;
 	}
 	INFO("DTLS connected.");
 	return bio;
+
+cleanup_dtls_ssl:
+	//SSL_free(ssl);
+cleanup_dtls_bio:
+	BIO_flush(bio);
+	if(!BIO_free(bio)) {
+		OPENSSL_ERROR("Error cleaning up BIO.");
+	}
+	return NULL;
 }
 
 // Just wrap around, we don't care.
@@ -232,25 +240,8 @@ void setCIE(SSL *ssl,
 	}
 }
 
-int main(int argc, char **argv)
+void loopColors(SSL *ssl)
 {
-	if (argc != 4) {
-		fprintf(stderr, "Usage:\n%s hue-IP-address identity psk\n", argv[0]);
-		printf("Argc: %d\n", argc);
-		exit(EXIT_FAILURE);
-	}
-	identity = argv[2];
-	psk = argv[3];
-	if (strlen(psk) != 32) {
-		ERROR("PSK needs to be exactly 32 hex digits.");
-		exit(EXIT_FAILURE);
-	}
-	SSL_CTX *ctx = createContext();
-	BIO *bio = connectDTLS(ctx, argv[1]);
-	SSL *ssl;
-	BIO_get_ssl(bio, &ssl);
-	SSL_connect(ssl);
-
 	int colorIndex = 0;
 	struct timespec delay;
 	delay.tv_sec = 0;
@@ -268,4 +259,52 @@ int main(int argc, char **argv)
 		nanosleep(&delay, NULL);
 		printf("Set color index %d\n", colorIndex);
 	}
+}
+
+int main(int argc, char **argv)
+{
+	if (argc != 4) {
+		fprintf(stderr, "Usage:\n%s hue-IP-address identity psk\n", argv[0]);
+		printf("Argc: %d\n", argc);
+		exit(EXIT_FAILURE);
+	}
+	identity = argv[2];
+	psk = argv[3];
+	if (strlen(psk) != 32) {
+		ERROR("PSK needs to be exactly 32 hex digits.");
+		exit(EXIT_FAILURE);
+	}
+
+	SSL_CTX *ctx = createContext();
+	if (ctx == NULL) {
+		ERROR("Unable to create SSL context.");
+		exit(EXIT_FAILURE);
+	}
+	int sock = connectUDP(argv[1]);
+	if (sock < 0) {
+		goto cleanup_socket;
+	}
+	BIO *bio = connectDTLS(ctx, sock);
+	if (bio == NULL) {
+		goto cleanup_bio;
+	}
+	SSL *ssl;
+	BIO_get_ssl(bio, &ssl);
+
+	loopColors(ssl);
+
+	SSL_free(ssl);
+cleanup_bio:
+	BIO_flush(bio);
+	BIO_free(bio);
+cleanup_socket:
+	if(!shutdown(sock, SHUT_RDWR)) {
+		ERROR(strerror(errno));
+	}
+	if(!close(sock)) {
+		ERROR(strerror(errno));
+	}
+cleanup_ctx:
+	SSL_CTX_free(ctx);
+	exit(EXIT_FAILURE);
 }
