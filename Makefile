@@ -6,8 +6,11 @@ all: hue-dansen
 
 .PHONY: clean test
 
-hue-dansen: hue-dansen.o
+hue-dansen: hue-dansen.o hue-dtls.o
 	$(CC) $(LDFLAGS) -o $@ $^
+
+hue-dansen.o: hue-dtls.h log.h
+hue-dtls.o: hue-dtls.c hue-dtls.h log.h
 
 test: hue-dansen
 	./test.sh

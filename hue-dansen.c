@@ -10,20 +10,10 @@
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 
-#define LOG(lvl, msg) do { \
-	fprintf(stderr, "(%-6s) %15s:%4d: %s\n", lvl, __FILE__, __LINE__, msg); \
-} while(0);
-
-#define INFO(msg) LOG("INFO", msg);
-#define WARN(msg) LOG("WARN", msg);
-#define ERROR(msg) LOG("ERROR", msg);
-#define OPENSSL_ERROR(msg) do { \
-	ERROR(msg); \
-	ERR_print_errors_fp(stderr); \
-} while(0);
+#include "log.h"
+#include "hue-dtls.h"
 
 
-#define HUE_ENTERTAINMENT_PORT "2100"
 #define BPM 165
 #define BPM_DELAY_US ((int)(60.0 / (float)BPM * 1000000))
 #define SUPERSAMPLE_COUNT 4
@@ -47,158 +37,6 @@ static struct color colors[4] = {
 	// orange (0.54, 0.43)
 	{35388, 28180}
 };
-
-unsigned int pskCallback(SSL *ssl,
-                         const char *hint,
-                         char *identity_buf,
-                         unsigned int max_identity_len,
-                         unsigned char *psk_buf,
-                         unsigned int max_psk_len)
-{
-	strlcpy(identity_buf, identity, max_identity_len);
-	// Convert the 32 character hex string into 16 bytes
-	uint8_t pskBytes[16];
-	for (int i = 0; i < 32; i += 2) {
-		sscanf(psk + i, "%2hhX", pskBytes + i / 2);
-	}
-	memcpy(psk_buf, &pskBytes, 16);
-	return 16;
-}
-
-SSL_CTX *createContext()
-{
-	SSL_CTX *ctx = SSL_CTX_new(DTLS_client_method());
-	if (ctx == NULL) {
-		OPENSSL_ERROR("Unable to allocate SSL context.");
-		return NULL;
-	}
-	// Force it to just DTLSv1.2
-	SSL_CTX_set_min_proto_version(ctx, DTLS1_2_VERSION);
-	// Hue entertainment only supports one cipher
-	SSL_CTX_set_cipher_list(ctx, "PSK-AES128-GCM-SHA256");
-	// Give the identity and PSK
-	SSL_CTX_set_psk_client_callback(ctx, pskCallback);
-	INFO("Created DTLSv1.2 context.")
-	return ctx;
-}
-
-int connectUDP(char *host)
-{
-	// Modified from the getaddrinfo man page
-	struct addrinfo hints, *results, *result;
-	int err, sock;
-	bzero(&hints, sizeof(hints));
-	hints.ai_family = PF_UNSPEC;
-	hints.ai_socktype = SOCK_DGRAM;
-	hints.ai_protocol = IPPROTO_UDP;
-	hints.ai_flags = AI_DEFAULT;
-
-	err = getaddrinfo(host, HUE_ENTERTAINMENT_PORT, &hints, &results);
-	if (err) {
-		ERROR(gai_strerror(err));
-		return -1;
-	}
-	sock = -1;
-	for (result = results; result; result = result->ai_next) {
-		sock = socket(result->ai_family, result->ai_socktype,
-				      result->ai_protocol);
-		if (sock < 0) {
-			WARN(strerror(errno));
-			continue;
-		}
-		INFO("UDP socket created.");
-		if (connect(sock, result->ai_addr, result->ai_addrlen) < 0) {
-			WARN(strerror(errno));
-			close(sock);
-			sock = -1;
-			continue;
-		}
-		INFO("UDP socket connected.");
-		break;
-	}
-	freeaddrinfo(results);
-	if (sock < 0) {
-		ERROR("Unable to connect to host.");
-		return -1;
-	}
-	return sock;
-}
-
-BIO *connectDTLS(SSL_CTX *ctx, int sock)
-{
-	int err;
-	BIO *bio = BIO_new_dgram(sock, BIO_NOCLOSE);
-	if (bio == NULL) {
-		OPENSSL_ERROR("Unable to create BIO.");
-		return NULL;
-	}
-	INFO("BIO created.");
-	// Keeping the UDP connection in a separate function, so we have to re-look
-	// up the address the socket is connected to.
-	// Just assuming IPv6 address structs are large enough for both IPv4 and v6
-	socklen_t addr_len = sizeof(struct sockaddr_in6);
-	struct sockaddr *addr = malloc(addr_len);
-	if (addr == NULL) {
-		ERROR("Unable to allocate memory!");
-		goto cleanup_dtls_bio;
-	}
-	err = getsockname(sock, addr, &addr_len);
-	if (err) {
-		ERROR(strerror(errno));
-		goto cleanup_dtls_bio;
-	}
-	// Hook the BIO up to the socket
-	err = BIO_ctrl(bio, BIO_CTRL_DGRAM_SET_CONNECTED, 0, addr);
-	/* Commenting this out as the return value fo BIO_ctrl isn't great.
-	if (err) {
-		OPENSSL_ERROR("Unable to set BIO connected status.");
-		goto cleanup_bio;
-	}
-	*/
-	// TODO: Confirm that I don't have a use-after-free here
-	free(addr);
-	INFO("BIO attached to existing UDP socket.");
-	return bio;
-
-cleanup_dtls_bio:
-	BIO_flush(bio);
-	if(!BIO_free(bio)) {
-		OPENSSL_ERROR("Error cleaning up BIO.");
-	}
-	return NULL;
-}
-
-
-SSL *connectSSL(SSL_CTX *ctx, BIO *bio)
-{
-	// Create an SSL object and hook it up to the BIO
-	SSL *ssl = SSL_new(ctx);
-	if (ssl == NULL) {
-		OPENSSL_ERROR("Unable to create SSL object.");
-		return NULL;
-	}
-	INFO("SSL object created.");
-	SSL_set_bio(ssl, bio, bio);
-	INFO("SSL objected attached to BIO.");
-	// Set timeout
-	struct timeval timeout;
-	bzero(&timeout, sizeof(timeout));
-	timeout.tv_sec = 2;
-	BIO_ctrl(bio, BIO_CTRL_DGRAM_SET_RECV_TIMEOUT, 0, &timeout);
-	INFO("SSL timeout set.");
-	// Connect
-	int err = SSL_connect(ssl);
-	if (err < 1) {
-		OPENSSL_ERROR("Unable to open DTLS channel.");
-		goto cleanup_ssl_ssl;
-	}
-	INFO("DTLS connected.");
-	return ssl;
-
-cleanup_ssl_ssl:
-	SSL_free(ssl);
-	return NULL;
-}
 
 // Just wrap around, we don't care.
 static uint8_t sequenceNumber;
@@ -257,7 +95,7 @@ void loopColors(SSL *ssl, int duration)
 	time_t currentTime = startTime;
 	int colorIndex = 0;
 	// TODO: hardcoding the lights for now
-	uint16_t lightIDs[] = {0, 1};
+	uint16_t lightIDs[] = {2, 3};
 	while(1) {
 		if (duration != 0) {
 			currentTime = time(NULL);
@@ -282,7 +120,7 @@ void loopColors(SSL *ssl, int duration)
 int main(int argc, char **argv)
 {
 	int duration = 0;
-	int exitStatus = EXIT_SUCCESS;
+	int exit_status = EXIT_SUCCESS;
 	if (argc < 4) {
 		fprintf(stderr,
 		        "Usage:\n%s hue-IP-address identity psk [duration]\n", argv[0]);
@@ -295,46 +133,27 @@ int main(int argc, char **argv)
 	identity = argv[2];
 	psk = argv[3];
 	if (strlen(psk) != 32) {
-		ERROR("PSK needs to be exactly 32 hex digits.");
+		LOG_ERROR("PSK needs to be exactly 32 hex digits.");
 		exit(EXIT_FAILURE);
 	}
 
-	SSL_CTX *ctx = createContext();
+	SSL_CTX *ctx = create_context();
 	if (ctx == NULL) {
-		ERROR("Unable to create SSL context.");
+		LOG_ERROR("Unable to create SSL context.");
 		exit(EXIT_FAILURE);
 	}
-	int sock = connectUDP(argv[1]);
-	if (sock < 0) {
-		exitStatus = EXIT_FAILURE;
-		goto cleanup_socket;
-	}
-	BIO *bio = connectDTLS(ctx, sock);
-	if (bio == NULL) {
-		exitStatus = EXIT_FAILURE;
-		goto cleanup_bio;
-	}
-	SSL *ssl = connectSSL(ctx, bio);
-	if (ssl == NULL) {
-		exitStatus = EXIT_FAILURE;
-		goto cleanup_bio;
+	struct connection * conn = open_connection(ctx, argv[1], argv[2], argv[3]);
+	if (conn == NULL) {
+		LOG_ERROR("Unable to open DTLS connection to Hue bridge.");
+		exit_status = EXIT_FAILURE;
+		goto cleanup_ctx;
 	}
 
 	printf("Delay is %d us (%f s)\n", BPM_DELAY_US, (BPM_DELAY_US / 1000000.0));
-	loopColors(ssl, duration);
+	loopColors(conn->ssl, duration);
 
-cleanup_bio:
-	BIO_free(bio);
-cleanup_socket:
-	if(!shutdown(sock, SHUT_RDWR)) {
-		exitStatus = EXIT_FAILURE;
-		ERROR(strerror(errno));
-	}
-	if(!close(sock)) {
-		exitStatus = EXIT_FAILURE;
-		ERROR(strerror(errno));
-	}
+	close_connection(conn);
 cleanup_ctx:
 	SSL_CTX_free(ctx);
-	exit(exitStatus);
+	exit(exit_status);
 }
