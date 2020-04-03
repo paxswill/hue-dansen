@@ -1,6 +1,6 @@
-#Hue-dansen
+# Hue-dansen
 
-###Alternatively, Caramellights.
+### Alternatively, Caramellights.
 
 This is a quick and dirty (there's pretty minimal error handling) tool to make
 Philips Hue lights quickly flash different colors similar to the
