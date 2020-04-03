@@ -62,7 +62,7 @@ mode through the Hue API. I did all those manually through the Hue CLIP
 debugging tool (`http://<Hue bridge IP>/debug/clip.html`, and then started
 `hue-dansen` once stream mode was active.
 
-Once you've registered an application with *with a client key*, and stream mode
+Once you've registered an application **with a client key**, and stream mode
 is active (it will disable itself after a few second of inactivity, so be
 quick!) you can start `hue-dansen` like this:
 
