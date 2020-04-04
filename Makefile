@@ -7,7 +7,7 @@ CFLAGS := -Wall -g
 sources = hue-dtls.c hue-dansen.c
 include $(sources:.c=.d)
 
-.PHONY: clean test
+.PHONY: clean test all
 
 all: hue-dansen
 
