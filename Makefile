@@ -4,18 +4,23 @@ LDLIBS := -lssl -lcrypto -lc
 CPPFLAGS := -I$(OPENSSL_PREFIX)/include/ 
 CFLAGS := -Wall -g
 
-all: hue-dansen
+sources = hue-dtls.c hue-dansen.c
+include $(sources:.c=.d)
 
 .PHONY: clean test
 
-hue-dansen: hue-dansen.o hue-dtls.o
-	$(CC) $(LDFLAGS) -o $@ $^
+all: hue-dansen
 
-hue-dansen.o: hue-dtls.h log.h
-hue-dtls.o: hue-dtls.c hue-dtls.h log.h
+hue-dansen: hue-dtls.o
 
 test: hue-dansen
 	./test.sh
 
 clean:
-	rm -f *.o hue-dansen
+	rm -f *.o *.d hue-dansen
+
+%.d: %.c
+	@set -e; rm -f $@; \
+		$(CC) -MM $(CPPFLAGS) $< > $@.$$$$; \
+		sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+		rm -f $@.$$$$
