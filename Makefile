@@ -1,6 +1,8 @@
 export OPENSSL_PREFIX := $(shell brew --prefix openssl@1.1)
-LDFLAGS := -lssl -lcrypto -L$(OPENSSL_PREFIX)/lib/
-CFLAGS := -I$(OPENSSL_PREFIX)/include/ -Wall -g
+LDFLAGS := -L$(OPENSSL_PREFIX)/lib/
+LDLIBS := -lssl -lcrypto -lc
+CPPFLAGS := -I$(OPENSSL_PREFIX)/include/ 
+CFLAGS := -Wall -g
 
 all: hue-dansen
 
