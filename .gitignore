@@ -3,3 +3,4 @@
 *.d.*
 *.dSYM
 hue-dansen
+test-ring-buffer
