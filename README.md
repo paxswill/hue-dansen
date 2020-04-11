@@ -45,9 +45,23 @@ especially close reading).
 
 ## Compiling
 
-Right now the Makefile assumes you're using macOS and have OpenSSL 1.1.x
-installed through Homebrew, but it's pretty easy to change that (literally the
-first line). From there a plain `make` should build it all for you.
+So far I've focused on building on macOS exclusively, but I've been trying to
+keep it abstract enough that it can be ported to Linux pretty easily later on.
+Because Apple doesn't include OpenSSL on recent versions of macOS (more
+accurately, they don't include the headers and disallow linking to it), you
+will need to install OpenSSL from Homebrew. You will also need CMake. Both can
+be installed with `brew install cmake openssl@1.1`. You can safely ignore the
+warning about OpenSSL being keg-only, the build system is explicitly aware of
+it.
+
+To initialize the build system with out-of-tree builds (which are also
+required), run this in the root of the source tree:
+
+    cmake -S . -B build
+
+Then to build everything:
+
+    cmake --build build
 
 The IDs of the lights to change is also currently hardcoded (remember where I
 said this was quick and dirty?), so you will have to explore the Hue API and

@@ -1,6 +1,1 @@
-*.o
-*.d
-*.d.*
-*.dSYM
-hue-dansen
-test-ring-buffer
+build
