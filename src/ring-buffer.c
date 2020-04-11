@@ -26,7 +26,7 @@ struct ring_buffer * ring_buf_create(size_t element_size, int element_count)
 		return NULL;
 	}
 	buffer->read_index = buffer->write_index = 0;
-	ring->written = true;
+	buffer->written = true;
 	return buffer;
 }
 
