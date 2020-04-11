@@ -1,6 +1,6 @@
 export OPENSSL_PREFIX := $(shell brew --prefix openssl@1.1)
 LDFLAGS := -L$(OPENSSL_PREFIX)/lib/
-LDLIBS := -lssl -lcrypto -lc
+LDLIBS := -lssl -lcrypto -lc -framework CoreAudio -framework Foundation -framework AudioToolbox -framework Accelerate
 CPPFLAGS := -I$(OPENSSL_PREFIX)/include/ 
 CFLAGS := -Wall -g
 
