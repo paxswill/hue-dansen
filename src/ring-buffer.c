@@ -84,6 +84,34 @@ int ring_buf_read(struct ring_buffer * ring, void * dest, size_t dest_len)
 	if (dest_len > ring->buf_size) {
 		LOG_WARN("Reading more data out than the ring buffer can store.");
 	}
+	size_t element_size = ring->element_size;
+	/* Don't need to worry about going past the write index, as that's checked
+	 * in ring_buf_available.
+	 */
+	unsigned int bytes_available = ring_buf_available(ring);
+	unsigned int read_count = MIN(dest_len, bytes_available);
+	unsigned char * dest_buffer = (unsigned char *)dest;
+	unsigned int new_read_index;
+	new_read_index = (ring->read_index + read_count) % ring->count;
+	// Again, possibly two separate operations here.
+	if (ring->read_index + read_count > ring->count) {
+		/* 2 operations needed: first from the read index to the end of the
+		 * ring, then from the beginning of the ring for as many more bytes as
+		 * were requested.
+		 */
+		unsigned int count2 = new_read_index;
+		unsigned int count1 = read_count - count2;
+		memmove(dest_buffer, ring->buffer + (element_size * ring->read_index),
+		        count1 * element_size);
+		memmove(dest_buffer + (count1 * element_size), ring->buffer,
+		        count2 * element_size);
+	} else {
+		// Only one operation needed.
+		memmove(dest_buffer, ring->buffer + (ring->read_index * element_size),
+		        element_size);
+	}
+	ring->read_index = new_read_index;
+	return read_count;
 }
 
 void ring_buf_clear(struct ring_buffer * ring){
@@ -112,6 +140,7 @@ unsigned int ring_buf_available(struct ring_buffer * ring)
 			if (available == 0) {
 				return ring->count;
 			}
+			return available;
 		}
 	} else {
 		return 0;

@@ -23,7 +23,7 @@ struct ring_buffer {
 struct ring_buffer * ring_buf_create(size_t element_size, int element_count);
 void ring_buf_free(struct ring_buffer * buffer);
 
-// Both of these functions return the number of elements written/read
+// Both of these functions return the number of elements (NOT BYTES) accessed
 int ring_buf_write(struct ring_buffer * buffer,
                    data_t * elements, unsigned int elements_count);
 int ring_buf_read(struct ring_buffer * buffer,
