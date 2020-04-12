@@ -229,6 +229,7 @@ BIO * attach_bio(int sock)
 	return bio;
 
 cleanup_attach_bio:
+    free(addr);
 	BIO_flush(bio);
 	if(!BIO_free(bio)) {
 		LOG_OPENSSL_ERROR("Error cleaning up BIO.");
