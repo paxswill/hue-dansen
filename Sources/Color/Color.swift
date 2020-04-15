@@ -133,36 +133,45 @@ public struct Color<T: Real>: ChromaticityPoint {
             self.brightness = NumberType(1.0)
         }
     }
-    
-    public init<U: FixedWidthInteger & UnsignedInteger>(r: U, g: U, b: U) {
-        self.init(r: r, g: g, b: b, colorspace: RGBColorspace<NumberType>.sRGB)
+
+    public init<U: FixedWidthInteger & UnsignedInteger>(red: U, green: U, blue: U) {
+        self.init(red: red, green: green, blue: blue, colorspace: RGBColorspace<NumberType>.sRGB)
     }
     
-    public init<U: FixedWidthInteger & UnsignedInteger>(r: U, g: U, b: U, colorspace: RGBColorspace<NumberType>) {
+    public init<U: FixedWidthInteger & UnsignedInteger>(red: U, green: U, blue: U, colorspace: RGBColorspace<NumberType>) {
         let maxRange: NumberType = NumberType(U.max)
         // Special case white-gray-black
-        if r == g && g == b {
-            self.init(x: colorspace.white.x, y: colorspace.white.y, brightness: NumberType(r) / maxRange)
+        if red == green && green == blue {
+            self.init(x: colorspace.white.x, y: colorspace.white.y, brightness: NumberType(red) / maxRange)
         } else {
             // convert the integer values to floating point values 0.0-1.0
-            let rgb: [NumberType] = [r, g, b].map { val in
+            let rgb: [NumberType] = [red, green, blue].map { val in
                     NumberType(val) / maxRange
                 }
-            let linearRGB = rgb.map(colorspace.gamma)
-            let forwardMatrix: [[NumberType]] = colorspace.forwardMatrix()
-            let XYZ: [[NumberType]] = matrixMultiply(forwardMatrix, [linearRGB])
-            // convert X and Z to x and y
-            let total: NumberType = XYZ[0].reduce(NumberType.zero, +)
-            var x: NumberType = NumberType.zero
-            var y: NumberType = NumberType.zero
-            if total == NumberType.zero {
-                x = colorspace.white.x
-                y = colorspace.white.y
-            } else {
-                x = XYZ[0][0] / total
-                y = XYZ[0][1] / total
-            }
-            self.init(x: x, y: y, brightness: XYZ[0][1])
+            self.init(red: rgb[0], green: rgb[1], blue: rgb[2], colorspace: colorspace)
         }
+    }
+    
+    public init(red: NumberType, green: NumberType, blue: NumberType) {
+        self.init(red: red, green: green, blue: blue, colorspace: RGBColorspace<NumberType>.sRGB)
+    }
+    
+    public init(red: NumberType, green: NumberType, blue: NumberType, colorspace: RGBColorspace<NumberType>) {
+        let rgb = [red, green, blue]
+        let linearRGB = rgb.map(colorspace.gamma)
+        let forwardMatrix: [[NumberType]] = colorspace.forwardMatrix()
+        let XYZ: [[NumberType]] = matrixMultiply(forwardMatrix, [linearRGB])
+        // convert X and Z to x and y
+        let total: NumberType = XYZ[0].reduce(NumberType.zero, +)
+        var x: NumberType = NumberType.zero
+        var y: NumberType = NumberType.zero
+        if total == NumberType.zero {
+            x = colorspace.white.x
+            y = colorspace.white.y
+        } else {
+            x = XYZ[0][0] / total
+            y = XYZ[0][1] / total
+        }
+        self.init(x: x, y: y, brightness: XYZ[0][1])
     }
 }
