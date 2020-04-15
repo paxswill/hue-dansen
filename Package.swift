@@ -7,7 +7,7 @@ let package = Package(
     name: "CaramelLights",
     products: [
         // Products define the executables and libraries produced by a package, and make them visible to other packages.
-        .library(
+        .executable(
             name: "CaramelLights",
             targets: ["CaramelLights"]),
         .library(
@@ -27,13 +27,18 @@ let package = Package(
         .package(name: "Socket", url: "https://github.com/IBM-Swift/BlueSocket.git", from: "1.0.52"),
         .package(name: "CryptoSwift", url: "https://github.com/krzyzanowskim/CryptoSwift.git", from: "1.3.1"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
+        .package(url: "https://github.com/apple/swift-argument-parser", .upToNextMinor(from: "0.0.1")),
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
         // Targets can depend on other targets in this package, and on products in packages which this package depends on.
         .target(
             name: "CaramelLights",
-            dependencies: []),
+            dependencies: [
+                "HueEntertainment",
+                "Color",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+        ]),
         .target(
             name: "HueEntertainment",
             dependencies: [

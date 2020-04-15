@@ -4,7 +4,7 @@ import OpenSSL
 import CryptoSwift
 import Logging
 
-let log = Logger(label: "com.paxswill.caramellights.hue-connection")
+fileprivate let log = Logger(label: "com.paxswill.caramellights.hue-connection")
 
 enum HueEntertainmentConnectionError: Error {
     case hostNotFound(host: String)
@@ -12,10 +12,10 @@ enum HueEntertainmentConnectionError: Error {
 }
 
 // Using a class instead of struct so we can wrap these in Unmanaged easier
-class PskIdentity {
-    let identity: String
-    let psk: Data
-    init(_ identity: String, withHex hexPsk: String) {
+public class PskIdentity {
+    public let identity: String
+    public let psk: Data
+    public init(_ identity: String, withHex hexPsk: String) {
         self.identity = identity
         self.psk = Data(hex: hexPsk)
     }
@@ -53,7 +53,7 @@ func pskCallback(_ ssl: OpaquePointer?, _ hint: UnsafePointer<CChar>?, _ identit
     return UInt32(unmanagedID.psk.copyBytes(to: pskBuffer))
 }
 
-class HueEntertainmentConnection {
+public class HueEntertainmentConnection {
     // If only supporting OpenSSL 1.0.0, we can use typed UnsafeMutablePointers,
     // But OpenSSL 1.1.0 made them all opaque, so we get OpaquePointers instead.
     // TODO: convert sslContext to a computed type property
@@ -75,7 +75,7 @@ class HueEntertainmentConnection {
         }
     }
     var bio: OpaquePointer?
-    var identity: PskIdentity? {
+    public var identity: PskIdentity? {
         didSet {
             // If we don't have an SSL connection open, we can't set app data for it.
             guard ssl != nil else {
@@ -92,12 +92,12 @@ class HueEntertainmentConnection {
         }
     }
     
-    convenience init(identity: String, pskHex: String) throws {
+    public convenience init(identity: String, pskHex: String) throws {
         try self.init()
         self.identity = PskIdentity(identity, withHex: pskHex)
     }
     
-    init() throws {
+    public init() throws {
         guard let sslContext = OpaquePointer.make(optional: SSL_CTX_new(DTLS_client_method())) else {
             throw HueEntertainmentConnectionError.openSSLError()
         }
@@ -134,7 +134,7 @@ class HueEntertainmentConnection {
         SSL_CTX_set_psk_client_callback(.make(optional: self.sslContext), pskCallback)
     }
     
-    func connect(_ host: String, port: Int32 = 2100) throws {
+    public func connect(_ host: String, port: Int32 = 2100) throws {
         // Use a mutable variable for address as it's passed to an inout later
         guard var address = Socket.createAddress(for: host, on: port) else {
             throw HueEntertainmentConnectionError.hostNotFound(host: host)
